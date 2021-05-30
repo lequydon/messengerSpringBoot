@@ -3,43 +3,85 @@ package com.masseger.config;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
+import org.springframework.security.config.annotation.authentication.configurers.provisioning.InMemoryUserDetailsManagerConfigurer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import com.masseger.filter.JWTAuthenticationFilter;
+import com.masseger.filter.JWTLoginFilter;
 
 @Configuration
-public class WebSecurityConfig extends WebSecurityConfigurerAdapter  {
-	@Autowired
-    private UserDetailsService userDetailsService;
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
-    @Autowired
-    public void configureGlobal(AuthenticationManagerBuilder auth) throws Exception {
-        auth.userDetailsService(userDetailsService).passwordEncoder(passwordEncoder());
-    }
+public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
+	
+	  @Autowired private UserDetailsService userDetailsService;
+	 
+	@Bean
+	public PasswordEncoder passwordEncoder() {
+		return new BCryptPasswordEncoder();
+	}
+
+	
+	  @Autowired public void configureGlobal(AuthenticationManagerBuilder auth)
+	  throws Exception {
+	  auth.userDetailsService(userDetailsService).passwordEncoder(passwordEncoder()
+	  ); }
+	 
+	/*
+	 * @Override protected void configure(AuthenticationManagerBuilder auth) throws
+	 * Exception {
+	 * 
+	 * String password = "123";
+	 * 
+	 * String encrytedPassword = this.passwordEncoder().encode(password);
+	 * System.out.println("Encoded password of 123=" + encrytedPassword);
+	 * 
+	 * InMemoryUserDetailsManagerConfigurer<AuthenticationManagerBuilder> //
+	 * mngConfig = auth.inMemoryAuthentication();
+	 * 
+	 * // Defines 2 users, stored in memory. // ** Spring BOOT >= 2.x (Spring
+	 * Security 5.x) // Spring auto add ROLE_
+	 * 
+	 * UserDetails u1 =
+	 * User.withUsername("tom").password(encrytedPassword).roles("USER").build();
+	 * UserDetails u2 =
+	 * User.withUsername("jerry").password(encrytedPassword).roles("USER").build();
+	 * 
+	 * mngConfig.withUser(u1); mngConfig.withUser(u2);
+	 * 
+	 * 
+	 * // If Spring BOOT < 2.x (Spring Security 4.x)): // Spring auto add ROLE_
+	 * mngConfig.withUser("tom").password("123").roles("USER");
+	 * mngConfig.withUser("jerry").password("123").roles("USER");
+	 * 
+	 * }
+	 */
 	@Override
-	 protected void configure(HttpSecurity http) throws Exception{
-        http
-        .authorizeRequests()
-            .antMatchers("/register").permitAll()
-            .antMatchers("/").hasRole("MEMBER")
-            .antMatchers("/admin").hasRole("ADMIN")
-            .antMatchers("/user").hasRole("ADMIN")
-            .antMatchers("/modify").hasRole("MEMBER")
-            .and()
-        .formLogin()
-            .loginPage("/login")
-            .usernameParameter("email")
-            .passwordParameter("password")
-            .defaultSuccessUrl("/")
-            .failureUrl("/login?error")
-            .and()
-        .exceptionHandling()
-            .accessDeniedPage("/403");
-	 }
+	protected void configure(HttpSecurity http) throws Exception {
+		http.csrf().disable().authorizeRequests()
+				// No need authentication.
+				.antMatchers("/").permitAll() //
+				.antMatchers(HttpMethod.POST, "/login").permitAll() //
+				.antMatchers(HttpMethod.GET, "/login").permitAll() // For Test on Browser
+				// Need authentication.
+				.anyRequest().authenticated()
+				//
+				.and()
+				//
+				// Add Filter 1 - JWTLoginFilter
+				//
+				.addFilterBefore(new JWTLoginFilter("/login", authenticationManager()),
+						UsernamePasswordAuthenticationFilter.class)
+				//
+				// Add Filter 2 - JWTAuthenticationFilter
+				//
+				.addFilterBefore(new JWTAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
+	}
 }
